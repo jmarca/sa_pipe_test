@@ -138,15 +138,15 @@ before(
     })
 
 
-// after(function(done){
-//     superagent.del(cdb)
-//     .auth(cuser,cpass)
-//     .end(function(e,r){
-//         if(e) console.log('problem deleting',e)
-//         return done(e);
-//     })
-//     return null
-// })
+after(function(done){
+    superagent.del(cdb)
+    .auth(cuser,cpass)
+    .end(function(e,r){
+        if(e) console.log('problem deleting',e)
+        return done(e);
+    })
+    return null
+})
 
 describe('pipe test ',function(){
     it('should return a doc from couchdb'
