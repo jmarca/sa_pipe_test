@@ -29,10 +29,37 @@ var couch_dbname,cdb;
 function pipetest(req,res,next){
     // source is some known doc in couchdb, which will come back json
     console.log('pipe test')
+    res.setHeader("Content-Type", "application/json");
     var from = cdb + '/mydocid';
+    console.log('getting '+from)
     var cdb_req = superagent.get(from)
                   .accept('application/json')
     cdb_req.pipe(res);
+    return null
+}
+function make_piper(resp){
+    return function nullparser(r, fn){
+        r.pipe(resp,{ end: false })
+        r.on('data', function(chunk) {
+            console.log('got %d bytes of data', chunk.length);
+            console.log(chunk.toString())
+        });
+        r.on('end', function(a,b){
+            console.log('end called')
+            resp.end()
+            fn(a,b)
+        })
+    }
+}
+function hacked_pipetest(req,res,next){
+    // source is some known doc in couchdb, which will come back json
+    console.log('hacked pipe test')
+    res.setHeader("Content-Type", "application/json");
+    var from = cdb + '/mydocid';
+    console.log('hacked, getting '+from)
+    var cdb_req = superagent.get(from)
+    .parse(make_piper(res))
+    .end()
     return null
 }
 before(
@@ -41,13 +68,12 @@ before(
         // create server
         q.defer(function(cb){
             app = express()
-            app.get('pipetest',pipetest)
-            server=http
-                   .createServer(app)
-                   .listen(testport,function(){
-                       console.log('server listening')
-                       return cb()
-                   })
+            app.get('/pipetest',pipetest)
+            app.get('/hackedpipetest',hacked_pipetest)
+            app.listen(testport,function(){
+                console.log('server listening')
+                return cb()
+            })
             return null
         })
         // create couchdb test stuff
@@ -92,7 +118,7 @@ before(
                 superagent.get(cdb+'/mydocid')
                 .accept('application/json')
                 .end(function(e,r){
-                    console.log(r.body)
+                    console.log('proof:'+r.body)
                     if(e) console.log('problem getting',e)
                     should.exist(r.body)
                     r.body.should.have.property('name','james')
@@ -112,21 +138,44 @@ before(
     })
 
 
-after(function(done){
-    superagent.del(cdb)
-    .auth(cuser,cpass)
-    .end(function(e,r){
-        if(e) console.log('problem deleting',e)
-        return done(e);
-    })
-    return null
-})
+// after(function(done){
+//     superagent.del(cdb)
+//     .auth(cuser,cpass)
+//     .end(function(e,r){
+//         if(e) console.log('problem deleting',e)
+//         return done(e);
+//     })
+//     return null
+// })
 
 describe('pipe test ',function(){
     it('should return a doc from couchdb'
       ,function(done){
            superagent
            .get('http://'+ testhost +':'+testport+'/pipetest')
+           .set('accept','application/json')
+           .set('followRedirect',true)
+           .end(
+               function(err,res){
+                   //console.log(err)
+                   //console.log(res)
+                   if(err) return done(err)
+                   should.exist(res.body)
+                   var c = res.body
+                   console.log(c)
+                   c.should.have.property('name','james')
+                   c.should.have.property('pet','farfalla')
+                   return done()
+               })
+           return null
+       })
+    return null
+})
+describe('hackedpipe test ',function(){
+    it('should return a doc from couchdb'
+      ,function(done){
+           superagent
+           .get('http://'+ testhost +':'+testport+'/hackedpipetest')
            .set('accept','application/json')
            .set('followRedirect',true)
            .end(
